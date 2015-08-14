@@ -9,7 +9,7 @@ struct lockfree_fifo {
         unsigned capacity;
         unsigned first;
         unsigned last;
-        unsigned fill;
+        unsigned volatile fill;
 };
 
 int lockfree_fifo_init(struct lockfree_fifo *fifo,
