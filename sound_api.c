@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <alsa/asoundlib.h>
@@ -6,6 +7,7 @@
 #include "sound_api.h"
 #include "sine_generator.h"
 #include "sawtooth_generator.h"
+#include "x_generator.h"
 #include "lohi_generator.h"
 #include "print_time.h"
 
@@ -25,6 +27,7 @@ static int write_thread_exit_requested;
 static struct sawtooth_generator saw;
 static struct sine_generator sine;
 static struct lohi_generator lohi;
+static struct x_generator xgen;
 
 int num_samples_per_second(void)
 {
@@ -198,7 +201,8 @@ static void write_once(void)
         static float mousex = 0.5f;
         static float mousey = 0.5f;
         static enum {
-                SOUND_SAW = 0, SOUND_SINE = 1, SOUND_LOHI = 2, SOUND_LAST = 3
+                SOUND_SAW, SOUND_SINE, SOUND_LOHI,
+                SOUND_XGEN, SOUND_LAST,
         } sound = SOUND_SAW;
 
         if (events_dequeue_if_avail(&ev) != -1) {
@@ -210,6 +214,10 @@ static void write_once(void)
                         case KEY_SPACE:
                                 sound = (sound + 1) % SOUND_LAST;
                                 break;
+                        case KEY_ESCAPE:
+                        case KEY_q:
+                                /* XXX */
+                                exit(1);
                         default:
                                 break;
                         }
@@ -230,10 +238,19 @@ static void write_once(void)
                 buf = sine_generator_generate(&sine);
                 break;
         case SOUND_LOHI:
+                lohi.speed += mousex - lohi.high;
                 lohi.high = mousex;
                 lohi.amplitude = mousey * 32*1024;
                 lohi_generator_generate(&lohi);
                 buf = (short *)lohi.buf;
+                break;
+        case SOUND_XGEN:
+                xgen.speed = mousex / 20;
+                xgen.amplitude = mousey * 32*1024;
+                buf = x_generator_generate(&xgen);
+                break;
+        default:
+                assert(0);
                 break;
         }
 
@@ -259,6 +276,7 @@ static void init_write_thread(void)
         sawtooth_generator_init(&saw);
         sine_generator_init(&sine);
         lohi_generator_init(&lohi);
+        x_generator_init(&xgen);
 }
 
 static void exit_write_thread(void)
