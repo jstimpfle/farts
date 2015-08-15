@@ -197,29 +197,45 @@ static void write_once(void)
         struct event ev;
         static float mousex = 0.5f;
         static float mousey = 0.5f;
+        static enum {
+                SOUND_SAW = 0, SOUND_SINE = 1, SOUND_LOHI = 2, SOUND_LAST = 3
+        } sound = SOUND_SAW;
+
         if (events_dequeue_if_avail(&ev) != -1) {
                 if (ev.evtp == EVENT_MOUSEMOVE) {
                         mousex = ev.mouse_event.ratiox;
                         mousey = ev.mouse_event.ratioy;
+                } else if (ev.evtp == EVENT_KEYPRESS) {
+                        switch (ev.key_press_event.key) {
+                        case KEY_SPACE:
+                                sound = (sound + 1) % SOUND_LAST;
+                                break;
+                        default:
+                                break;
+                        }
                 }
         }
 
         short *buf;
 
-        /* saw.speed = mousex / 20;
-         * saw.amplitude = mousey * 32*1024;
-         * buf = sawtooth_generator_generate(&saw);
-         */
-
-        sine.speed = mousex / 5;
-        sine.amplitude = mousey * 32 * 1024;
-        buf = sine_generator_generate(&sine);
-
-        /*lohi.high = mousex;
-        lohi.amplitude = mousey * 32*1024;
-        lohi_generator_generate(&lohi);
-        buf = (short *)lohi.buf;
-        */
+        switch (sound) {
+        case SOUND_SAW:
+                saw.speed = mousex / 20;
+                saw.amplitude = mousey * 32*1024;
+                buf = sawtooth_generator_generate(&saw);
+                break;
+        case SOUND_SINE:
+                sine.speed = mousex / 5;
+                sine.amplitude = mousey * 32 * 1024;
+                buf = sine_generator_generate(&sine);
+                break;
+        case SOUND_LOHI:
+                lohi.high = mousex;
+                lohi.amplitude = mousey * 32*1024;
+                lohi_generator_generate(&lohi);
+                buf = (short *)lohi.buf;
+                break;
+        }
 
         alsa_err = snd_pcm_writei(pcm_handle, buf, num_samples_per_period());
         if (alsa_err < 0) {

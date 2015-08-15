@@ -3,6 +3,7 @@
 #include <pthread.h>
 #include <X11/Xlib.h>
 #include <X11/Xatom.h>
+#include <X11/keysym.h>
 #include "events.h"
 #include "lockfree_fifo.h"
 
@@ -18,6 +19,14 @@ static int width = 400;
 static int height = 400;
 static struct lockfree_fifo *fifo;
 
+static void enqueue_event(struct event *ev)
+{
+        int r = lockfree_fifo_enqueue(fifo, ev);
+        if (r == -1) {
+                fprintf(stderr, "WARNING: events buffer overrun\n");
+        }
+}
+
 static void handle_configurenotify(XConfigureEvent *ev)
 {
         width = ev->width;
@@ -26,7 +35,6 @@ static void handle_configurenotify(XConfigureEvent *ev)
 
 static void handle_motionnotify(XMotionEvent *xev)
 {
-        int r;
         struct event ev;
 
         mousex = xev->x;
@@ -36,15 +44,85 @@ static void handle_motionnotify(XMotionEvent *xev)
         ev.mouse_event.ratiox = (float) xev->x / width;
         ev.mouse_event.ratioy = (float) xev->y / height;
 
-        r = lockfree_fifo_enqueue(fifo, &ev);
-        if (r == -1) {
-                fprintf(stderr, "WARNING: events buffer overrun\n");
+        enqueue_event(&ev);
+}
+
+static int x11button_to_buttontype(unsigned b, enum button_type *out)
+{
+        switch (b) {
+        case Button1Mask:
+                *out = BUTTON_1;
+                return 0;
+        case Button2Mask:
+                *out = BUTTON_2;
+                return 0;
+        case Button3Mask:
+                *out = BUTTON_3;
+                return 0;
+        case Button4Mask:
+                *out = BUTTON_4;
+                return 0;
+        case Button5Mask:
+                *out = BUTTON_5;
+                return 0;
+        default:
+                return -1;
         }
-        else {
-                /*
-                fprintf(stderr, "created mouse move event\n");
-                */
+}
+
+static int x11key_to_keytype(XKeyEvent *ev, enum key_type *out)
+{
+        switch (XLookupKeysym(ev, 0)) {
+        case XK_Escape:
+                *out = KEY_ESCAPE;
+                return 0;
+        case XK_space:
+                *out = KEY_SPACE;
+                return 0;
+        case XK_q:
+                *out = KEY_q;
+                return 0;
+        default:
+                return -1;
         }
+}
+
+static void handle_buttonpress(XButtonEvent *xev)
+{
+        struct event ev;
+        ev.evtp = EVENT_BUTTONPRESS;
+        if (x11button_to_buttontype(xev->button, &ev.button_press_event.btn)
+            == -1)
+                return;
+        enqueue_event(&ev);
+}
+
+static void handle_buttonrelease(XButtonEvent *xev)
+{
+        struct event ev;
+        ev.evtp = EVENT_BUTTONRELEASE;
+        if (x11button_to_buttontype(xev->button, &ev.button_release_event.btn)
+            == -1)
+                return;
+        enqueue_event(&ev);
+}
+
+static void handle_keypress(XKeyEvent *xev)
+{
+        struct event ev;
+        ev.evtp = EVENT_KEYPRESS;
+        if (x11key_to_keytype(xev, &ev.key_press_event.key) == -1)
+                return;
+        enqueue_event(&ev);
+}
+
+static void handle_keyrelease(XKeyEvent *xev)
+{
+        struct event ev;
+        ev.evtp = EVENT_KEYRELEASE;
+        if (x11key_to_keytype(xev, &ev.key_release_event.key) == -1)
+                return;
+        enqueue_event(&ev);
 }
 
 static void *creator_thread(void *dummy)
@@ -62,16 +140,16 @@ static void *creator_thread(void *dummy)
                         break;
 
 		case KeyPress:
-			fprintf(stderr, "KeyPress\n");
+                        handle_keypress(&ev.xkey);
 			break;
 		case KeyRelease:
-			fprintf(stderr, "KeyRelease\n");
+                        handle_keyrelease(&ev.xkey);
 			break;
 		case ButtonPress:
-			fprintf(stderr, "ButtonPress\n");
+			handle_buttonpress(&ev.xbutton);
 			break;
 		case ButtonRelease:
-			fprintf(stderr, "ButtonRelease\n");
+                        handle_buttonrelease(&ev.xbutton);
 			break;
 		case EnterNotify:
 			fprintf(stderr, "EnterNotify\n");
@@ -206,7 +284,8 @@ int events_init(void)
         }
         win = XCreateSimpleWindow(
                 dpy, DefaultRootWindow(dpy), 0, 0, width, height, 0, 0, 0);
-        XSelectInput(dpy, win, PointerMotionMask | StructureNotifyMask);
+        XSelectInput(dpy, win, PointerMotionMask | StructureNotifyMask
+                                | KeyPressMask | KeyReleaseMask);
         XMapWindow(dpy, win);
 
         wm_delete_window = XInternAtom(dpy, "WM_DELETE_WINDOW", False);
