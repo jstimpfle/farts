@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <alsa/asoundlib.h>
 #include <pthread.h>
+#include "events.h"
 #include "sound_api.h"
 #include "sine_generator.h"
 #include "sawtooth_generator.h"
@@ -22,6 +23,7 @@ static pthread_t pthread_var;
 static int write_thread_exit_requested;
 
 static struct sawtooth_generator saw;
+static struct sine_generator sine;
 static struct lohi_generator lohi;
 
 int num_samples_per_second(void)
@@ -64,7 +66,7 @@ static const char *alsa_state_to_string(snd_pcm_state_t state)
         }
 }
 
-static void print_alsa_state(void)
+static void __attribute__((unused)) print_alsa_state(void)
 {
         snd_pcm_state_t state = snd_pcm_state(pcm_handle);
         fprintf(stderr, "ALSA state is %s\n", alsa_state_to_string(state));
@@ -188,18 +190,36 @@ static void write_once(void)
         snd_pcm_sframes_t avail;
         alsa_err = avail = snd_pcm_avail(pcm_handle);
         /*fail_if_alsa_error("requesting avail");
-         */
         if (alsa_err >= 0)
                 fprintf(stderr, "avail: %d\n", (int) avail);
+         */
 
-        /*saw.speed = (float)random() / 0xffffffff / 5;
-        short *buf = generate_sawtooth(&saw);
+        struct event ev;
+        static float mousex = 0.5f;
+        static float mousey = 0.5f;
+        if (events_dequeue_if_avail(&ev) != -1) {
+                if (ev.evtp == EVENT_MOUSEMOVE) {
+                        mousex = ev.mouse_event.ratiox;
+                        mousey = ev.mouse_event.ratioy;
+                }
+        }
+
+        short *buf;
+
+        /* saw.speed = mousex / 20;
+         * saw.amplitude = mousey * 32*1024;
+         * buf = sawtooth_generator_generate(&saw);
+         */
+
+        sine.speed = mousex / 5;
+        sine.amplitude = mousey * 32 * 1024;
+        buf = sine_generator_generate(&sine);
+
+        /*lohi.high = mousex;
+        lohi.amplitude = mousey * 32*1024;
+        lohi_generator_generate(&lohi);
+        buf = (short *)lohi.buf;
         */
-
-        generate_lohi(&lohi);
-        short *buf = (short *)lohi.buf;
-
-        print_time();
 
         alsa_err = snd_pcm_writei(pcm_handle, buf, num_samples_per_period());
         if (alsa_err < 0) {
@@ -220,14 +240,15 @@ static void write_once(void)
 
 static void init_write_thread(void)
 {
-        init_sawtooth_generator(&saw);
-        init_lohi_generator(&lohi);
+        sawtooth_generator_init(&saw);
+        sine_generator_init(&sine);
+        lohi_generator_init(&lohi);
 }
 
 static void exit_write_thread(void)
 {
-        exit_sawtooth_generator(&saw);
-        exit_lohi_generator(&lohi);
+        sawtooth_generator_exit(&saw);
+        lohi_generator_exit(&lohi);
 }
 
 static void *write_thread(void *dummy)
@@ -240,13 +261,13 @@ static void *write_thread(void *dummy)
         return NULL;
 }
 
-static void fork_off_write_thread(void)
+void sound_api_start_playing(void)
 {
         write_thread_exit_requested = 0;
         pthread_create(&pthread_var, NULL, write_thread, NULL);
 }
 
-static void terminate_write_thread(void)
+void sound_api_stop_playing(void)
 {
         write_thread_exit_requested = 1;
 
@@ -256,7 +277,7 @@ static void terminate_write_thread(void)
         }
 }
 
-void init_sound_api(int samples_per_second,
+void sound_api_init(int samples_per_second,
                     int samples_per_period,
                     int periods_in_buffer)
 {
@@ -274,22 +295,14 @@ void init_sound_api(int samples_per_second,
         alsa_err = snd_pcm_prepare(pcm_handle);
         fail_if_alsa_error("preparing pcm");
 
-        print_alsa_state();
-
         init_poll_fds();
 
-        /*alsa_err = snd_pcm_start(pcm_handle);
+        alsa_err = snd_pcm_start(pcm_handle);
         fail_if_alsa_error("starting pcm");
-        */
-
-        print_alsa_state();
-
-        fork_off_write_thread();
 }
 
-void exit_sound_api(void)
+void sound_api_exit(void)
 {
-        terminate_write_thread();
         exit_poll_fds();
 
         alsa_err = snd_pcm_close(pcm_handle);

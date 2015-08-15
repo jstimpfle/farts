@@ -13,10 +13,9 @@ void *test_writer(void *fifop)
         /* sync with reader, without increasing "misses" */
         while (lockfree_fifo_enqueue(fifo, &i) == -1) {
         }
-        while (fifo->fill == 1) {
-        }
+        lockfree_fifo_block_until_writeable(fifo);
 
-        for (i = 0; i < 100000000; i++) {
+        for (i = 0; i < 14000000; i++) {
                 while (lockfree_fifo_enqueue(fifo, &i) == -1)
                         misses++;
         }
@@ -32,10 +31,11 @@ void *test_reader(void *fifop)
         struct lockfree_fifo *fifo = fifop;
 
         /* sync with writer, without increasing "misses" */
+        lockfree_fifo_block_until_readable(fifo);
         while (lockfree_fifo_dequeue(fifo, &out) == -1) {
         }
 
-        for (i = 0; i < 100000000; i++) {
+        for (i = 0; i < 14000000; i++) {
                 while (lockfree_fifo_dequeue(fifo, &out) == -1)
                         misses++;
                 /*printf("read %d\n", out);
@@ -70,8 +70,7 @@ void test_fifo(unsigned fifo_size)
         if (r != 0)
                 fprintf(stderr, "Warning: pthread_join failed\n");
 
-        printf("first, last, fill: %d %d %d\n",
-               fifo.first, fifo.last, fifo.fill);
+        printf("first, last: %d %d\n", fifo.first, fifo.last);
 
         lockfree_fifo_exit(&fifo);
 }

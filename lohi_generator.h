@@ -11,8 +11,8 @@ struct lohi_generator {
         float interval;
 };
 
-void generate_lohi(struct lohi_generator *lohi);
-void init_lohi_generator(struct lohi_generator *lohi);
-void exit_lohi_generator(struct lohi_generator *lohi);
+void lohi_generator_generate(struct lohi_generator *lohi);
+void lohi_generator_init(struct lohi_generator *lohi);
+void lohi_generator_exit(struct lohi_generator *lohi);
 
 #endif

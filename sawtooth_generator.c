@@ -3,19 +3,19 @@
 #include "sawtooth_generator.h"
 #include "sound_api.h"
 
-void init_sawtooth_generator(struct sawtooth_generator *saw)
+void sawtooth_generator_init(struct sawtooth_generator *saw)
 {
         saw->amplitude = 20000;
         saw->phase = 0.0f;
         saw->speed = 0.001f;
 }
 
-void exit_sawtooth_generator(struct sawtooth_generator *saw)
+void sawtooth_generator_exit(struct sawtooth_generator *saw)
 {
         (void) saw;
 }
 
-short *generate_sawtooth(struct sawtooth_generator *saw)
+short *sawtooth_generator_generate(struct sawtooth_generator *saw)
 {
         int i;
         for (i = 0; i < num_samples_per_period(); i++) {

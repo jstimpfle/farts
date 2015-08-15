@@ -8,9 +8,9 @@ struct sawtooth_generator {
         float speed;
 };
 
-void init_sawtooth_generator(struct sawtooth_generator *saw);
-void exit_sawtooth_generator(struct sawtooth_generator *saw);
+void sawtooth_generator_init(struct sawtooth_generator *saw);
+void sawtooth_generator_exit(struct sawtooth_generator *saw);
 
-short *generate_sawtooth(struct sawtooth_generator *saw);
+short *sawtooth_generator_generate(struct sawtooth_generator *saw);
 
 #endif

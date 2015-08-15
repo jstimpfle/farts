@@ -3,7 +3,7 @@
 #include "lohi_generator.h"
 #include "sound_api.h"
 
-void generate_lohi(struct lohi_generator *lohi)
+void lohi_generator_generate(struct lohi_generator *lohi)
 {
         int i;
 
@@ -17,7 +17,7 @@ void generate_lohi(struct lohi_generator *lohi)
         }
 }
 
-void init_lohi_generator(struct lohi_generator *lohi)
+void lohi_generator_init(struct lohi_generator *lohi)
 {
         lohi->amplitude = 20000;
         lohi->phase = 0.0f;
@@ -27,6 +27,6 @@ void init_lohi_generator(struct lohi_generator *lohi)
         lohi->interval = 0.05f;
 }
 
-void exit_lohi_generator(struct lohi_generator *lohi)
+void lohi_generator_exit(struct lohi_generator *lohi)
 {
 }
