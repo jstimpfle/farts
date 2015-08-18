@@ -206,6 +206,8 @@ static void write_once(void)
         } sound = SOUND_SAW;
 
         if (events_dequeue_if_avail(&ev) != -1) {
+                while (events_dequeue_if_avail(&ev) != -1)
+                        continue;
                 if (ev.evtp == EVENT_MOUSEMOVE) {
                         mousex = ev.mouse_event.ratiox;
                         mousey = ev.mouse_event.ratioy;
