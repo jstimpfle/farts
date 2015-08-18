@@ -49,7 +49,7 @@ void test_fifo(unsigned fifo_size)
 {
         int r;
         pthread_t pt;
-        struct lockfree_fifo fifo;
+        struct lockfree_fifo *fifo;
 
         r = lockfree_fifo_init(&fifo, sizeof (int), fifo_size);
         if (r == -1) {
@@ -57,22 +57,20 @@ void test_fifo(unsigned fifo_size)
                 return;
         }
 
-        r = pthread_create(&pt, NULL, test_writer, &fifo);
+        r = pthread_create(&pt, NULL, test_writer, fifo);
         if (r != 0) {
                 fprintf(stderr, "pthread_create failed!\n");
-                lockfree_fifo_exit(&fifo);
+                lockfree_fifo_exit(fifo);
                 return;
         }
 
-        test_reader(&fifo);
+        test_reader(fifo);
 
         r = pthread_join(pt, NULL);
         if (r != 0)
                 fprintf(stderr, "Warning: pthread_join failed\n");
 
-        printf("first, last: %d %d\n", fifo.first, fifo.last);
-
-        lockfree_fifo_exit(&fifo);
+        lockfree_fifo_exit(fifo);
 }
 
 int main(int argc, const char *argv[])
