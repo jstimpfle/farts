@@ -75,7 +75,7 @@ void test_fifo(unsigned fifo_size)
 
 int main(int argc, const char *argv[])
 {
-        int fifo_size = 1;
+        int fifo_size = 2;
         if (argc == 2)
                 fifo_size = strtol(argv[1], NULL, 10);
         test_fifo(fifo_size);

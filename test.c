@@ -22,7 +22,7 @@ static int run_program(void)
         sound_api_start_playing();
         events_start_producing();
 
-        for (;;)
+        while (!user_wants_to_quit())
                 sleep(1);
 
         events_stop_producing();

@@ -32,3 +32,7 @@ void x_generator_init(struct x_generator *x)
         x->speed = 0.2f;
         x->amplitude = 16*1024;
 }
+
+void x_generator_exit(struct x_generator *x)
+{
+}

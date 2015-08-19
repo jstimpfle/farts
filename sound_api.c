@@ -22,12 +22,13 @@ static struct pollfd *poll_fds;
 static int num_poll_fds;
 
 static pthread_t pthread_var;
-static int write_thread_exit_requested;
 
 static struct sawtooth_generator saw;
 static struct sine_generator sine;
 static struct lohi_generator lohi;
 static struct x_generator xgen;
+
+static volatile int write_thread_exit_requested;
 
 int num_samples_per_second(void)
 {
@@ -69,15 +70,14 @@ static const char *alsa_state_to_string(snd_pcm_state_t state)
         }
 }
 
-static void __attribute__((unused)) print_alsa_state(void)
+static void __attribute__((unused)) print_alsa_state(snd_pcm_state_t state)
 {
-        snd_pcm_state_t state = snd_pcm_state(pcm_handle);
         fprintf(stderr, "ALSA state is %s\n", alsa_state_to_string(state));
 }
 
-static void print_alsa_state_if_not_running(void)
+static void __attribute__((unused)) print_alsa_state_if_not_running(
+                                                        snd_pcm_state_t state)
 {
-        snd_pcm_state_t state = snd_pcm_state(pcm_handle);
         if (state != SND_PCM_STATE_RUNNING)
                 fprintf(stderr, "ALSA state is %s\n",
                         alsa_state_to_string(state));
@@ -133,12 +133,8 @@ static void set_sw_params(void)
         fail_if_alsa_error("fill sw_params structures with current values");
 
         alsa_err = snd_pcm_sw_params_set_start_threshold(pcm_handle,
-                                                         sw_params, 0);
-        fail_if_alsa_error("set software start threshold to 0");
-
-        alsa_err = snd_pcm_sw_params_set_stop_threshold(pcm_handle,
-                                                        sw_params, 10);
-        fail_if_alsa_error("set software stop threshold");
+                                         sw_params, num_samples_per_period());
+        fail_if_alsa_error("set software start threshold to period size");
 
         alsa_err = snd_pcm_sw_params(pcm_handle, sw_params);
         fail_if_alsa_error("applying software configuration");
@@ -186,16 +182,26 @@ static void poll_until_writeable(void)
 
 static void write_once(void)
 {
-        poll_until_writeable();
-
-        print_alsa_state_if_not_running();
-
+        snd_pcm_state_t state;
         snd_pcm_sframes_t avail;
-        alsa_err = avail = snd_pcm_avail(pcm_handle);
-        /*fail_if_alsa_error("requesting avail");
-        if (alsa_err >= 0)
-                fprintf(stderr, "avail: %d\n", (int) avail);
-         */
+        
+        state = snd_pcm_state(pcm_handle);
+        if (state == SND_PCM_STATE_RUNNING) {
+                poll_until_writeable();
+                state = snd_pcm_state(pcm_handle);
+                if (state == SND_PCM_STATE_RUNNING) {
+                        alsa_err = avail = snd_pcm_avail(pcm_handle);
+                        state = snd_pcm_state(pcm_handle);
+                        if (alsa_err < 0) {
+                        } else {
+                                /*fprintf(stderr, "avail: %d\n", (int) avail);
+                                 */
+                        }
+                }
+        }
+
+        if (state != SND_PCM_STATE_RUNNING)
+                print_alsa_state(state);
 
         struct event ev;
         static float mousex = 0.5f;
@@ -208,21 +214,22 @@ static void write_once(void)
         if (events_dequeue_if_avail(&ev) != -1) {
                 while (events_dequeue_if_avail(&ev) != -1)
                         continue;
-                if (ev.evtp == EVENT_MOUSEMOVE) {
+                switch (ev.evtp) {
+                case EVENT_MOUSEMOVE:
                         mousex = ev.mouse_event.ratiox;
                         mousey = ev.mouse_event.ratioy;
-                } else if (ev.evtp == EVENT_KEYPRESS) {
+                        break;
+                case EVENT_KEYPRESS:
                         switch (ev.key_press_event.key) {
                         case KEY_SPACE:
                                 sound = (sound + 1) % SOUND_LAST;
                                 break;
-                        case KEY_ESCAPE:
-                        case KEY_q:
-                                /* XXX */
-                                exit(1);
                         default:
                                 break;
                         }
+                        break;
+                default:
+                        break;
                 }
         }
 
@@ -260,7 +267,7 @@ static void write_once(void)
         if (alsa_err < 0) {
                 fprintf(stderr, "Trying to handle error after writei\n");
                 assert(alsa_err != -EBADFD);
-                if (alsa_err == -EPIPE || -ESTRPIPE) {
+                if (alsa_err == -EPIPE || alsa_err == -ESTRPIPE) {
                         alsa_err = snd_pcm_recover(pcm_handle, alsa_err, 0);
                         fail_if_alsa_error("recovering from error");
                         fprintf(stderr, "state is now: %s\n",
@@ -284,7 +291,9 @@ static void init_write_thread(void)
 static void exit_write_thread(void)
 {
         sawtooth_generator_exit(&saw);
+        sine_generator_exit(&sine);
         lohi_generator_exit(&lohi);
+        x_generator_exit(&xgen);
 }
 
 static void *write_thread(void *dummy)
@@ -301,6 +310,7 @@ void sound_api_start_playing(void)
 {
         write_thread_exit_requested = 0;
         pthread_create(&pthread_var, NULL, write_thread, NULL);
+        fprintf(stderr, "Press space to change sounds\n");
 }
 
 void sound_api_stop_playing(void)
@@ -333,8 +343,12 @@ void sound_api_init(int samples_per_second,
 
         init_poll_fds();
 
-        alsa_err = snd_pcm_start(pcm_handle);
+        static short buf[48000][2];
+        memset(buf, 0, sizeof buf);
+        snd_pcm_writei(pcm_handle, buf, num_samples_per_period());
+        /*alsa_err = snd_pcm_start(pcm_handle);
         fail_if_alsa_error("starting pcm");
+        */
 }
 
 void sound_api_exit(void)

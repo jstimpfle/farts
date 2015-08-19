@@ -60,5 +60,6 @@ void events_exit(void);
 int  events_start_producing(void);
 void events_stop_producing(void);
 int  events_dequeue_if_avail(struct event *event);
+int  user_wants_to_quit(void);
 
 #endif

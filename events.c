@@ -7,17 +7,50 @@
 #include "events.h"
 #include "lockfree_fifo.h"
 
+/* It seems cancelling the writer thread is not possible when it is inside Xlib
+ * (e.g. XNextEvent()). So we use shared variables to communicate exit request.
+ * The problem currently is that we have to wait for XNextEvent() to return
+ * before the thread exits. */
+
 #define EVENT_BUFFER_SIZE (128)
 
 static pthread_t creator_thread_var;
 static Display *dpy;
 static Window win;
-static Atom wm_delete_window;
+static Atom delete_window_atom;
 static int mousex = 0;
 static int mousey = 0;
 static int width = 400;
 static int height = 400;
 static struct lockfree_fifo *fifo;
+/* creator thread <-> extern calls communication variables */
+static volatile int quit_key_pressed;
+static volatile int delete_window_received;
+static volatile int creator_thread_must_exit;
+
+static int init_display(void)
+{
+        dpy = XOpenDisplay(NULL);
+        if (!dpy) {
+                fprintf(stderr, "Failed to open display\n");
+                return -1;
+        }
+        win = XCreateSimpleWindow(
+                dpy, DefaultRootWindow(dpy), 0, 0, width, height, 0, 0, 0);
+        XSelectInput(dpy, win, PointerMotionMask | StructureNotifyMask
+                                | KeyPressMask | KeyReleaseMask);
+        XMapWindow(dpy, win);
+
+        delete_window_atom = XInternAtom(dpy, "WM_DELETE_WINDOW", False);
+        XSetWMProtocols(dpy, win, &delete_window_atom, 1);
+
+        return 0;
+}
+
+static void exit_display(void)
+{
+        XCloseDisplay(dpy);
+}
 
 static void enqueue_event(struct event *ev)
 {
@@ -99,36 +132,38 @@ static void handle_buttonpress(XButtonEvent *xev)
 
 static void handle_buttonrelease(XButtonEvent *xev)
 {
-        struct event ev;
-        ev.evtp = EVENT_BUTTONRELEASE;
-        if (x11button_to_buttontype(xev->button, &ev.button_release_event.btn)
-            == -1)
-                return;
-        enqueue_event(&ev);
 }
 
 static void handle_keypress(XKeyEvent *xev)
 {
+        enum key_type key;
         struct event ev;
-        ev.evtp = EVENT_KEYPRESS;
-        if (x11key_to_keytype(xev, &ev.key_press_event.key) == -1)
+
+        if (x11key_to_keytype(xev, &key) == -1)
                 return;
-        enqueue_event(&ev);
+        switch (key) {
+        case KEY_ESCAPE:
+        case KEY_q:
+                quit_key_pressed = 1;
+                break;
+        case KEY_SPACE:
+                ev.evtp = EVENT_KEYPRESS;
+                ev.key_press_event.key = key;
+                enqueue_event(&ev);
+                break;
+        default:
+                break;
+        }
 }
 
 static void handle_keyrelease(XKeyEvent *xev)
 {
-        struct event ev;
-        ev.evtp = EVENT_KEYRELEASE;
-        if (x11key_to_keytype(xev, &ev.key_release_event.key) == -1)
-                return;
-        enqueue_event(&ev);
 }
 
 static void *creator_thread(void *dummy)
 {
         (void) dummy;
-        for (;;) {
+        while (!creator_thread_must_exit) {
                 XEvent ev;
                 XNextEvent(dpy, &ev);
                 switch (ev.type) {
@@ -223,9 +258,8 @@ static void *creator_thread(void *dummy)
 		case ClientMessage:
 			/*fprintf(stderr, "ClientMessage\n");
                          */
-                        if ((Atom)ev.xclient.data.l[0] == wm_delete_window)
-                                /* XXX */
-                                exit(0);
+                        if ((Atom)ev.xclient.data.l[0] == delete_window_atom)
+                                delete_window_received = 1;
 			break;
 		case PropertyNotify:
 			fprintf(stderr, "PropertyNotify\n");
@@ -261,10 +295,12 @@ int events_start_producing(void)
 
 void events_stop_producing(void)
 {
-        int r = pthread_cancel(creator_thread_var);
+        int r;
+
+        creator_thread_must_exit = 1;
+        r = pthread_join(creator_thread_var, NULL);
         if (r != 0) {
-                fprintf(stderr, "ERROR: Failed to cancel thread\n");
-                exit(1);
+                fprintf(stderr, "ERROR: Failed to join creator thread\n");
         }
 }
 
@@ -275,26 +311,21 @@ int events_dequeue_if_avail(struct event *event)
         return 0;
 }
 
+int user_wants_to_quit(void)
+{
+        return quit_key_pressed || delete_window_received;
+}
+
 int events_init(void)
 {
-        dpy = XOpenDisplay(NULL);
-        if (!dpy) {
-                fprintf(stderr, "Failed to open display\n");
+        if (init_display() == -1) {
                 return -1;
         }
-        win = XCreateSimpleWindow(
-                dpy, DefaultRootWindow(dpy), 0, 0, width, height, 0, 0, 0);
-        XSelectInput(dpy, win, PointerMotionMask | StructureNotifyMask
-                                | KeyPressMask | KeyReleaseMask);
-        XMapWindow(dpy, win);
-
-        wm_delete_window = XInternAtom(dpy, "WM_DELETE_WINDOW", False);
-        XSetWMProtocols(dpy, win, &wm_delete_window, 1);
 
         if (lockfree_fifo_init(&fifo, sizeof (struct event), EVENT_BUFFER_SIZE)
             == -1) {
                 fprintf(stderr, "Failed to init fifo\n");
-                XCloseDisplay(dpy);
+                exit_display();
                 return -1;
         }
 
@@ -303,5 +334,6 @@ int events_init(void)
 
 void events_exit(void)
 {
-        XCloseDisplay(dpy);
+        lockfree_fifo_exit(fifo);
+        exit_display();
 }

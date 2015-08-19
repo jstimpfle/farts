@@ -1,4 +1,4 @@
-CFLAGS = -Wall $(EXTRA_CFLAGS)
+CFLAGS = -O2 -Wall $(EXTRA_CFLAGS)
 COMPILE = $(CC) $(CFLAGS) -c
 LINK = $(CC) $(CFLAGS)
 

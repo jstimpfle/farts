@@ -9,6 +9,7 @@ struct x_generator {
 };
 
 void x_generator_init(struct x_generator *gen);
+void x_generator_exit(struct x_generator *x);
 short *x_generator_generate(struct x_generator *gen);
 
 #endif

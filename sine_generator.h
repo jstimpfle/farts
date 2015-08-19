@@ -9,6 +9,7 @@ struct sine_generator {
 };
 
 void sine_generator_init(struct sine_generator *gen);
+void sine_generator_exit(struct sine_generator *gen);
 
 short *sine_generator_generate(struct sine_generator *gen);
 

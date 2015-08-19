@@ -15,7 +15,7 @@ struct lockfree_fifo {
 
 #define COMPILER_BARRIER() asm volatile("" ::: "memory")
 
-/* on x86/x64 */
+/* on x86/x64. What about other architectures? */
 #define LOADLOAD_BARRIER() COMPILER_BARRIER()
 #define LOADSTORE_BARRIER() COMPILER_BARRIER()
 #define STORESTORE_BARRIER() COMPILER_BARRIER()

@@ -23,3 +23,7 @@ void sine_generator_init(struct sine_generator *gen)
         gen->speed = 0.2f;
         gen->amplitude = 32*1024;
 }
+
+void sine_generator_exit(struct sine_generator *gen)
+{
+}
