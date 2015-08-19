@@ -12,10 +12,10 @@ static int run_program(void)
         int r;
 
         sound_api_init(DEFAULT_SAMPLERATE, DEFAULT_SAMPLES, DEFAULT_PERIODS);
-
         r = events_init();
         if (r == -1) {
                 fprintf(stderr, "failed to init events creator module\n");
+                sound_api_exit();
                 return -1;
         }
 
