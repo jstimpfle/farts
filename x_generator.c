@@ -5,8 +5,9 @@
 short *x_generator_generate(struct x_generator *x)
 {
         int i;
+        int n = num_samples_per_period();
 
-        for (i = 0; i < num_samples_per_period(); i++) {
+        for (i = 0; i < n; i++) {
                 x->buf[i][0] = 0.0f;
                 x->buf[i][0] += x->amplitude * 0.3  * sinf(1*x->phase);
                 x->buf[i][0] += x->amplitude * 0.3  * sinf(2*x->phase);

@@ -18,7 +18,9 @@ void sawtooth_generator_exit(struct sawtooth_generator *saw)
 short *sawtooth_generator_generate(struct sawtooth_generator *saw)
 {
         int i;
-        for (i = 0; i < num_samples_per_period(); i++) {
+        int n = num_samples_per_period();
+
+        for (i = 0; i < n; i++) {
                 saw->buf[i][0] = saw->buf[i][1] = saw->amplitude * saw->phase;
                 saw->phase += saw->speed;
                 if (saw->phase > 1.0f)

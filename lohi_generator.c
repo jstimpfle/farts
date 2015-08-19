@@ -6,8 +6,9 @@
 void lohi_generator_generate(struct lohi_generator *lohi)
 {
         int i;
+        int n = num_samples_per_period();
 
-        for (i = 0; i < num_samples_per_period(); i++) {
+        for (i = 0; i < n; i++) {
                 lohi->buf[i][0] = lohi->amplitude * sinf(lohi->phase);
                 lohi->buf[i][1] = lohi->amplitude * sinf(lohi->phase);
                 lohi->phase += lohi->speed;

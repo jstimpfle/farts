@@ -5,7 +5,9 @@
 short *sine_generator_generate(struct sine_generator *gen)
 {
         int i;
-        for (i = 0; i < num_samples_per_period(); i++) {
+        int n = num_samples_per_period();
+
+        for (i = 0; i < n; i++) {
                 gen->phase += gen->speed;
                 if (gen->phase > 2*M_PI)
                         gen->phase -= 2*M_PI;
