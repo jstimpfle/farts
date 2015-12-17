@@ -22,10 +22,10 @@ all: test
 tests: test_lockfree_fifo
 
 test: $(test_OBJECTS)
-	$(LINK) $(test_LIBS) $(events_LIBS) $(sound_api_LIBS) $(sine_generator_LIBS) $(sawtooth_generator_LIBS) $(lohi_generator_LIBS) $(x_generator_LIBS) $(print_time_LIBS) -o $@ $^
+	$(LINK) -o $@ $^ $(test_LIBS) $(events_LIBS) $(sound_api_LIBS) $(sine_generator_LIBS) $(sawtooth_generator_LIBS) $(lohi_generator_LIBS) $(x_generator_LIBS) $(print_time_LIBS)
 
 test_lockfree_fifo: lockfree_fifo.o test_lockfree_fifo.o
-	$(LINK) $(lockfree_fifo_LIBS) $(test_lockfree_fifo_LIBS) -o $@ $^
+	$(LINK) -o $@ $^ $(lockfree_fifo_LIBS) $(test_lockfree_fifo_LIBS)
 
 %.o: %.c
 	$(COMPILE) -o $@ $<
