@@ -24,7 +24,7 @@ short *sawtooth_generator_generate(struct sawtooth_generator *saw)
                 saw->buf[i][0] = saw->buf[i][1] = saw->amplitude * saw->phase;
                 saw->phase += saw->speed;
                 if (saw->phase > 1.0f)
-                        saw->phase -= 2.0f;
+                        saw->phase = -1.0f;
         }
         return (short *) saw->buf;
 }
